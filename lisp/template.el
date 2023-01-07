@@ -3,7 +3,7 @@
 ;; Copyright (C) 1995-2003, 2008, 2009, 2012, 2015 Free Software Foundation, Inc.
 ;;
 ;; Author: Christoph Wedler <wedler@users.sourceforge.net>
-;; Version: 3.3b
+;; Version: 3.3b-kt-fixed
 ;; Keywords: template, comment decoration, auto-updating, data, tools
 ;; X-URL: http://emacs-template.sourceforge.net/
 
@@ -74,7 +74,7 @@
 
 ;; General Emacs/XEmacs-compatibility compile-time macros
 (eval-when-compile
-  (require 'cl)
+  (require 'cl-lib)
   (defmacro cond-emacs-xemacs (&rest args)
     (cond-emacs-xemacs-macfn
      args "`cond-emacs-xemacs' must return exactly one element"))
@@ -140,9 +140,13 @@
 			     'ignore)))))))))))
 
 (eval-when-compile
-  (require 'cl)
+  (require 'cl-lib)
+  (defvar template-use-package)
   (defvar init-file-loaded)		; would be useful in Emacs, too...
-  (defvar file-name-buffer-file-type-alist))
+  (defvar file-name-buffer-file-type-alist)
+  (defvar html-helper-build-new-buffer)
+  (defvar html-helper-do-write-file-hooks)
+  (declare-function c-fill-paragraph "cc-cmds"))
 
 
 
@@ -151,7 +155,7 @@
 ;;;;##########################################################################
 
 
-(defconst template-version "3.3b"
+(defconst template-version "3.3b-kt-fixed"
   "Current version of package template.
 Check <http://emacs-template.sourceforge.net/> for the newest.")
 
@@ -1363,7 +1367,7 @@ argument SYNTAX, see `template-comment-syntax'."
       (setq str (car (pop alist)))
       (when str
 	(setq i (length str))
-	(while (>= (decf i) 0)
+	(while (>= (cl-decf i) 0)
 	  ;; (pushnew (aref str i) chars), but requires cl at runtime:
 	  (or (memq (setq c (aref str i)) chars) (push c chars)))))
     (concat "\\("
@@ -1950,7 +1954,7 @@ Steps 6 to 11 in `template-new-file'."
   (dolist (entry template-local-alist)
     (and (null (cddr entry))
 	 (eq (car-safe (cadr entry)) 'template-read)
-	 (eval (list* 'template-read-from-minibuffer ; Step 9
+	 (eval (cl-list* 'template-read-from-minibuffer ; Step 9
 		      (car entry) (cdadr entry)))))
   ;; expand ----------------------------------------------------------------
   (while (re-search-forward template-expansion-regexp nil t)
@@ -2176,7 +2180,7 @@ depend on FORM-SELECTOR, see `template-definition-start' for details."
 
 (defun template-process-definition (expansion-rule form-selector)
   "Process definition in per-template definition section.
-Definition looks EXPANSION_RULE.  Some special definitions depend on
+Definition looks EXPANSION-RULE.  Some special definitions depend on
 FORM-SELECTOR, see `template-definition-start' for details."
   (cond ((stringp expansion-rule) ; "MESSAGE" --------------------------------
 	 (cond ((eq form-selector :before)
@@ -2237,7 +2241,7 @@ and will be quoted.  PROMPT is already checked, NOTHING must be nil."
 	       (symbolp policy)
 	       (null nothing))
     (error "Illegal form"))
-  (list* prompt prefix suffix default
+  (cl-list* prompt prefix suffix default
 	 (and policy (list (list 'quote policy)))))
 
 (defun template-elisp-in-definition (def &optional prefix)
@@ -2729,8 +2733,8 @@ See `easy-menu-define' for the format of MENU."
       (template-initialize-menus))
     (when (or (eq template-initialize t)
               (memq 'auto template-initialize))
-      (add-hook 'write-file-hooks 'template-update-buffer)
-      (add-hook 'find-file-not-found-hooks 'template-not-found-function t))
+      (add-hook 'write-file-functions 'template-update-buffer)
+      (add-hook 'find-file-not-found-functions 'template-not-found-function t))
     (when (or (eq template-initialize t)
               (memq 'ffap template-initialize))
       (or template-ffap-file-finder
