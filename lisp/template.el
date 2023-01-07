@@ -3,7 +3,7 @@
 ;; Copyright (C) 1995-2003, 2008, 2009, 2012, 2015 Free Software Foundation, Inc.
 ;;
 ;; Author: Christoph Wedler <wedler@users.sourceforge.net>
-;; Version: 3.3
+;; Version: 3.3a
 ;; Keywords: template, comment decoration, auto-updating, data, tools
 ;; X-URL: http://emacs-template.sourceforge.net/
 
@@ -150,7 +150,7 @@
 ;;;;##########################################################################
 
 
-(defconst template-version "3.3"
+(defconst template-version "3.3a"
   "Current version of package template.
 Check <http://emacs-template.sourceforge.net/> for the newest.")
 
@@ -1178,7 +1178,7 @@ line on."
     (when (cdr syntax)
       (goto-char orig)
       (error "Command only works with comments terminated by end-of-line"))
-    
+
     (if (and (eq last-command 'template-block-comment-success)
 	     (looking-at "[ \t]*$"))
 	(template-insert-newline "" nil (1- (template-point-at-bol)))
@@ -1513,8 +1513,8 @@ REGEXP.  Return region according to GROUP's regexp group in REGEXP."
 (defun template-match-modes-or-regexp (modes-or-regexp)
   "Return non-nil, if the current buffer passes MODES-OR-REGEXP.
 If MODES-OR-REGEXP is a list, it must include the current `major-mode',
-if it is a regexp, it must match the `buffer-file-name' without version,
-otherwise it must be non-nil."
+if it is a regexp, it must match variable `buffer-file-name' without
+version, otherwise it must be non-nil."
   (if (stringp modes-or-regexp)
       (and buffer-file-name
 	   (string-match modes-or-regexp
@@ -1680,14 +1680,14 @@ expansions DIR, FILE, FILE_SANS, FILE_EXT and others in
   "Value used inside `template-ffap-find-file'.
 If nil, initialize it to the value of `ffap-file-finder', i.e., this
 variable holds the original value of that variable which will be set to
-`template-ffap-find-file' in `template-initialize'.")
+`template-ffap-find-file' in function `template-initialize'.")
 
 
 ;;;===========================================================================
 ;;;  Functions: `find-file'/`insert-file-contents', hooking into `find-file'
 ;;;===========================================================================
 
-(defun template-find-template (filename &optional replace)
+(defunx template-find-template (filename &optional replace)
   "Switch to a buffer visiting template file FILENAME.
 If optional REPLACE is non-nil, replace the current buffer contents with
 the contents of file FILENAME.
@@ -1695,10 +1695,17 @@ the contents of file FILENAME.
 This function always considers template files as text files."
   (let ((file-name-buffer-file-type-alist nil))	; Emacs on DOS/NT
     (if replace
-	(insert-file-contents filename nil nil nil
-			      ;; 5th arg not t with empty accessible part
-			      ;; (XEmacs bug workaround: would infloop)
-			      (> (point-max) (point-min)))
+        (progn
+	  (insert-file-contents filename nil nil nil
+				;; 5th arg not t with empty accessible part
+				;; (XEmacs bug workaround: would infloop)
+				(> (point-max) (point-min)))
+          ;; now set the coding system to that of the template
+          ;; if necessary, we can introduce a user option for this
+          :EMACS
+	  (set-buffer-file-coding-system
+	   (set-auto-coding filename
+			    (- (point-max) (point-min)))))
       (let ((template-auto-insert nil))
 	(switch-to-buffer (find-file-noselect filename))))))
 
@@ -1729,8 +1736,8 @@ in `find-file-not-found-hooks'."
 
 (defun template-ffap-find-file (filename)
   "Function to use in `ffap-file-finder'.
-Add an entry to `command-history' if necessary and call function in
-`template-ffap-file-finder' with argument FILENAME."
+Add an entry to variable `command-history' if necessary and call
+function in `template-ffap-file-finder' with argument FILENAME."
   (or (memq (car-safe (car command-history))
 	    '(ffap find-file-at-point))
       (setq command-history
@@ -2238,7 +2245,7 @@ and will be quoted.  PROMPT is already checked, NOTHING must be nil."
     (error "Illegal form"))
   (list* prompt prefix suffix default
 	 (and policy (list (list 'quote policy)))))
-  
+
 (defun template-elisp-in-definition (def &optional prefix)
   "Return valid elisp definition and set `template-secure' accordingly.
 DEF is the elisp form, PREFIX would be the prefix argument if DEF is a
@@ -2390,7 +2397,8 @@ result is in `template-file'.  See `template-derivation-alist'."
 
 (defun template-insert-time (&optional format default)
   "Insert time into current buffer using time format FORMAT.
-If FORMAT is not a string, it uses DEFAULT or `format-time-string'."
+If FORMAT is not a string, it uses DEFAULT or the result of function
+`current-time-string'."
   (interactive)
   (insert (if (and (stringp format) (fboundp 'format-time-string))
 	      (format-time-string format (current-time))
@@ -2461,6 +2469,8 @@ current key of the expansion form.  For the other arguments, see
 				(format template-expansion-format
 					(cdr template-literal-environment))
 				suffix
+                                ;; now make sure that (>>>LITERAL<<<) in suffix
+                                ;; does not disable further expansions
 				(format template-expansion-format
 					(car template-literal-environment))
 				(format template-expansion-format
@@ -2503,6 +2513,8 @@ string, otherwise ask a \"y or n\" question and use the result of
 			      (y-or-n-p prompt))
 			    table))
 		"")
+            ;; now make sure that (>>>LITERAL<<<) in TEXT
+            ;; does not disable further expansions
 	    (format template-expansion-format
 		    (car template-literal-environment))
 	    (format template-expansion-format
