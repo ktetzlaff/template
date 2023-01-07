@@ -1,10 +1,27 @@
 This is template.info, produced by makeinfo version 4.12 from
-template.texi.
+/sapmnt/home1/d029492/.emacs.d/lisp/published/template.texi.
 
-This is the Emacs template package documentation, version 3.1c
-Copyright (C) 2008 Vincent Belaïche, 2015 Free Software Foundation, Inc.
+This manual is for the Emacs package "template" (3.1c/3.3b/diffs,
+updated March 2015).
 
-     Permission is granted to ...
+   Copyright (C) 2008 Vincent Belaïche, 2015 Free Software Foundation,
+Inc.
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the sections entitled "Copying" and "GNU General Public
+     License" are included exactly as in the original, and provided
+     that the entire resulting derived work is distributed under the
+     terms of a permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
 
 INFO-DIR-SECTION Emacs
 START-INFO-DIR-ENTRY
@@ -17,7 +34,13 @@ File: template.info,  Node: Top,  Next: Overview,  Prev: (dir),  Up: (dir)
 Top node.
 *********
 
-This is the manual of Emacs template package
+This is the manual of Emacs package "template" (3.1c/3.3b/diffs,
+updated March 2015).
+
+   When you create a new file with Emacs, package Template supplies an
+initial buffer content via a template: a file with normal text and
+so-called expansion forms.  You can also use new commands to decorate
+comments and update the buffer contents.
 
 * Menu:
 
@@ -36,26 +59,23 @@ File: template.info,  Node: Overview,  Next: Installation,  Prev: Top,  Up: Top
 
 When you create a new file with Emacs, package Template supplies an
 initial buffer content via a template: a file with normal text and
-expansion forms.  There is a menu to easily create such templates.  You
-can also use new commands to decorate comments and update the buffer
-contents.
+so-called expansion forms.  The main properties are:
 
-   The main difference between Template and *note other similar
-packages: Related. is that you can define very flexible templates
-without having to learn Lisp or changing your Emacs init file.  This
-package does not help Lisp programmers to define complex macros.
+   * Templates are defined via files, not by customizing your Emacs.
+     There is a menu to easily create such templates.
 
    * The template mechanism is hooked into the normal find/open file
      command.  There are also new commands for creating a new file
      using a template and inserting and expanding a template.
 
    * You do not have to enter the file name of the template file.  This
-     package uses a sophisticated search to find the most appropritate
+     package uses a sophisticated search to find the most appropriate
      template (supporting project- and subproject specific template
      files).  You can change the suggestion, of course.
 
-   * A template file can be easily created.  Most of the file usually
-     contains simple text; only "expansion forms" which look like
+   * A template file can be easily created - no Lisp code is required
+     even for quite sophistated templates.  Most of the file content is
+     usually simple text; only "expansion forms" which look like
      `(>>>KEY<<<)' will get replaced.
 
    * There are various useful predefined expansion forms: to set point
@@ -68,8 +88,7 @@ package does not help Lisp programmers to define complex macros.
      template file.  There are commands to create these definitions;
      only complex expansions would require some knowledge of Lisp.
 
-   There is a menu to support the creation of template files.
-Additionally, this package provides the following features:
+   Additionally, this package provides the following features:
 
    * When saving a buffer, some parts of the buffer contents (header
      and time stamps) are automatically updated if necessary.
@@ -78,72 +97,12 @@ Additionally, this package provides the following features:
      Works for languages with any comment style, even languages having
      mixed comments like C++ and Java.
 
-* Menu:
-
-* Related::
-
-
-File: template.info,  Node: Related,  Prev: Overview,  Up: Overview
-
-1.1 Packages Related to Template
-================================
-
-There are template packages of two different categories, which are
-determined by one question:
-
-   _What do you want to do with templates?_ Do you want to use templates
-when creating new files, or do you want to insert some stuff during
-editing (but you are not satisfied with the standard macro mechanism)?
-
-   Well, templates could be seen as both new-file templates and
-macro-like template, but the main application of templates determines
-the answers for the following questions:
-
-   * _How do you define a template?_ You can define it by one file per
-     template or by customizing some Emacs variables.  The first
-     solution (which is used by package Template) avoids Emacs hacking
-     but might not be optimal if you just want to define complex macros
-     or if you want to use templates to program a new Emacs major-mode.
-
-   * _How is an appropriate template selected?_ If you want to use
-     complex macro during editing, the answer is clear: the user have
-     to provide the name of the template.  For new files, the
-     appropriate template should be automatically selected.  But of
-     course, you don't want to loose any flexibility and you don't want
-     to customize your Emacs for every project you start.
-
-   * _How do you do "clever" things in the template?_ The aims are to
-     have many predefined expansions (e.g., the current date) and to
-     define some non-trivial things without learning Lisp.  Any
-     functionality here is the overlapping point of both template
-     categories.
-
-   Here is a little list of related files, collected around 1998, some
-discarded later (no URLs, no active updating, but you can send me a
-mail):
-
-   * Package `autoinsert.el' uses templates when creating new files.
-     These templates are defined via files or by customizing Emacs.
-     For each new template you want to introduce, you must customize
-     your Emacs, the selection is restricted to one template per
-     major-mode or regexp match.  No predefined expansions; clever
-     things are provided by usual Lisp expressions or the macro-like
-     templates of package `skeleton'.
-
-   * Package `skeleton.el' is a Lisp language extension for writing
-     statement skeletons, i.e., you get macro-like Lisp commands.
-
-   * Package `tempo.el' helps you defining and using named macro-like
-     templates.  Its predefined macros are similar to some predefined
-     expansions of package Template.  A specific template is used by
-     <code class="lisp">html-helper-mode</code> when creating a new
-     html file.  (This is turned off with the default installation of
-     package Template.)
-
-   * Package `hm-html-menus' provides a command to insert templates
-     editing.  These templates are defined via files.  There are no
-     predefined expansions (except setting point), non-trivial
-     expansions are defined via Lisp.
+   A final word: this manual does not explain deprecated functionality,
+and tries to give a user-friendly description of this package's
+functionality.  If you are interested in deprecated uses and a more
+technical description, please consult the online help for commands
+(functions) and user options (variables) - this manual includes a list
+of all related user options and commands.
 
 
 File: template.info,  Node: Installation,  Next: Basics,  Prev: Overview,  Up: Top
@@ -151,27 +110,34 @@ File: template.info,  Node: Installation,  Next: Basics,  Prev: Overview,  Up: T
 2 Installation
 **************
 
-2.1 Installation Instructions
-=============================
+This package requires Emacs-22.2, XEmacs-20.2 or higher.
 
-  1. Copy file `template/lisp/template.el' into your load-path and
-     byte-compile it.
+   To install, copy file `template.el' into your load-path, i.e. any
+directory mentioned in the value of `load-path'.  Then, byte compile
+(`M-x byte-compile-file') file `template.el'.
 
-  2. Insert the following code into your Emacs init file (`~/.emacs'):
+   To enable this package, use the following sequence:
 
-          (require 'template)
-          (template-initialize)
+   * Load this package by `M-x load-library <RET> template <RET>'.
 
-  3. If you want to customize package Template, use `M-x
-     customize-group <RET> template <RET>' or the customize entry in
-     menu `Options'.
+   * Customize via `M-x customize-variable <RET> template-use-package
+     <RET>'.
 
-  4. You might want to copy the template files from directory
-     `template/templates/' to `~/.templates/' and change them according
-     to your preferences.
+   * Toggle the option to `in use'.
 
-   Installation instructions with further explanations can be found in
-file `template/INSTALL' of the distribution.
+   * Save your customization via `Save for future sessions'.
+
+   Alternatively, you can enable this package by adding the following
+into your Emacs init file (`~/.emacs.d/init.el'):
+
+     (custom-set-variables '(template-use-package t nil (template)))
+
+   You might want to copy the template files from the directory
+`templates/' in the distribution to `~/.templates/' and change them
+according to your preferences.
+
+   If you want to customize package Template, use `M-x customize-group
+<RET> template <RET>' or the customize entry in menu `Options'.
 
 
 File: template.info,  Node: Basics,  Next: Advanced,  Prev: Installation,  Up: Top
@@ -2514,72 +2480,71 @@ Licence:
 
 
 Tag Table:
-Node: Top387
-Node: Overview914
-Node: Related3179
-Node: Installation6177
-Node: Basics7006
-Node: menus7525
-Node: using8417
-Ref: using-Footnote-19481
-Node: finding9585
-Node: creating12076
-Ref: creating-Footnote-115257
-Ref: creating-Footnote-215305
-Node: decorating15375
-Node: updating16759
-Ref: updating-Footnote-117775
-Node: Advanced17831
-Node: TplProcOverview19697
-Ref: TplProcOverview-Footnote-123193
-Node: NewFileSteps23279
-Ref: ExpStepInNewFile24921
-Node: Derivation26684
-Node: ExpStep31962
-Ref: ExpStep-Footnote-135258
-Node: ExpRules35324
-Node: FormatWhereEF36346
-Ref: FormatWhereEF-Footnote-140401
-Node: MyInputEF40637
-Node: MySettingEF42961
-Node: MyRegisterEF43457
-Node: MyCommandEF44386
-Node: ExpSetting44787
-Ref: ExpSetting-Footnote-146478
-Node: DefltExp46729
-Node: FilenameEF47788
-Node: RegistersEF49408
-Node: DateTimeEF49700
-Node: IdentitiesEF50199
-Node: MiscellaneousEF51197
-Node: ImplicitER51669
-Node: DefinitionSect53538
-Node: DefSect54882
-Ref: FileVariableInDefSect56282
-Node: Syntax59691
-Node: LispObj63522
-Node: ExRuleTS65654
-Node: TextRegTS66245
-Node: LocVarTS67260
-Node: MessageTS69163
-Node: CommandTS73003
-Node: Escaping76619
-Ref: RedefineExpkeyDecoration78140
-Ref: Escaping-Footnote-180181
-Node: Comments80377
-Node: BufferUpd84038
-Node: WhatDoesBU84416
-Ref: WhatDoesBU-Footnote-186454
-Node: TriggerBU86589
-Node: EnbDisableBU88472
-Node: CustomBU90449
-Node: Indexes94454
-Node: Concept Index94888
-Node: ExpForm Index96358
-Node: Command Index98886
-Node: Variable Index100189
-Node: Key Index101737
-Node: News102085
+Node: Top1285
+Node: Overview2103
+Node: Installation4503
+Node: Basics5661
+Node: menus6180
+Node: using7072
+Ref: using-Footnote-18136
+Node: finding8240
+Node: creating10731
+Ref: creating-Footnote-113912
+Ref: creating-Footnote-213960
+Node: decorating14030
+Node: updating15414
+Ref: updating-Footnote-116430
+Node: Advanced16486
+Node: TplProcOverview18352
+Ref: TplProcOverview-Footnote-121848
+Node: NewFileSteps21934
+Ref: ExpStepInNewFile23576
+Node: Derivation25339
+Node: ExpStep30617
+Ref: ExpStep-Footnote-133913
+Node: ExpRules33979
+Node: FormatWhereEF35001
+Ref: FormatWhereEF-Footnote-139056
+Node: MyInputEF39292
+Node: MySettingEF41616
+Node: MyRegisterEF42112
+Node: MyCommandEF43041
+Node: ExpSetting43442
+Ref: ExpSetting-Footnote-145133
+Node: DefltExp45384
+Node: FilenameEF46443
+Node: RegistersEF48063
+Node: DateTimeEF48355
+Node: IdentitiesEF48854
+Node: MiscellaneousEF49852
+Node: ImplicitER50324
+Node: DefinitionSect52193
+Node: DefSect53537
+Ref: FileVariableInDefSect54937
+Node: Syntax58346
+Node: LispObj62177
+Node: ExRuleTS64309
+Node: TextRegTS64900
+Node: LocVarTS65915
+Node: MessageTS67818
+Node: CommandTS71658
+Node: Escaping75274
+Ref: RedefineExpkeyDecoration76795
+Ref: Escaping-Footnote-178836
+Node: Comments79032
+Node: BufferUpd82693
+Node: WhatDoesBU83071
+Ref: WhatDoesBU-Footnote-185109
+Node: TriggerBU85244
+Node: EnbDisableBU87127
+Node: CustomBU89104
+Node: Indexes93109
+Node: Concept Index93543
+Node: ExpForm Index95013
+Node: Command Index97541
+Node: Variable Index98844
+Node: Key Index100392
+Node: News100740
 
 End Tag Table
 
