@@ -1,9 +1,5 @@
-### README for template.el: Template Package for Emacs
-
-## Copyright 2002 Free Software Foundation, Inc.
+## README for template.el: Comment decoration, auto-updating, data, tools
 ##
-## Author: Christoph Wedler <wedler@users.sourceforge.net>
-## Keywords: Emacs, template, comment decoration, auto-updating, data, tools
 ## X-URL: http://emacs-template.sourceforge.net/
 
 
@@ -18,25 +14,88 @@ your Emacs init file. This package does not help Lisp programmers to define
 complex macros.
 
 
-Files in the distribution (top level directory "template"):
+Changes 3.4 vs 3.3b:
+ * Make automatic template insertion into new files work again
+   when upgrading to Emacs-29 or newer.
+ * Make file menu entry "New File Using Template..." appear (again),
+   after "Visit New File...".
+ * Expansions now work with the right major mode.
+ * In Emacs, switching to the new buffer during minibuffer interaction
+   could have disturbed template expansions.
+ * Consistently bind variables defined in the definition section.
+   For customizing the expansion behavior on a per-template basis,
+   e.g. for files where "(>>>KEY<<<)" is not ideal.
+ * Streamline the check for secure commands and the decision
+   whether to call it interactively or non-interactively.
+ * Introduce a better way to define commands and sexprs
+   to be executed before and after the expansions,
+   see docstring of `template-definition-start' for details.
+ * Improve header updating.
+ * Improve code structure, docstrings and comments.
 
- * README: this file
- * INSTALL: how to install "lisp/template.el"
- * lisp/template.el: main file
- * lisp/ChangeLog: its detailed ChangeLog file
+Changes 3.3b vs 3.3a:
+ * Installation now works via customization.
 
-Templates in the distribution (in "template/templates"):
+Changes 3.3a vs 3.3:
+ * Template has an info file, currently for 3.1c.
+ * Use coding system of the template for new file.
 
- * DEFAULT.tpl: the last resort, you should always have this file
- * Makefile.tpl
- * README.tpl
- * TEMPLATE.c.tpl
- * TEMPLATE.cls.tpl
- * TEMPLATE.el.tpl
- * TEMPLATE.h.tpl
- * TEMPLATE.html.tpl
- * TEMPLATE.java.tpl
- * TEMPLATE.sty.tpl
- * TEMPLATE.tex.tpl
+Changes 3.3 vs 3.2 (internal):
+ * New expansion form "PACKAGE" for the directory path
+   between the template and the new file.
+ * Bug fix: avoid infloop when using M-x template-new-file in Emacs.
+ * Find a suitable default directory for templates in Emacs.
+ * Code/docstring/comment cleanup.
+ * Minor bug fix. Miscellaneous.
 
-## README ends here
+3.2 (internal) vs 3.1c:
+ * Make template work with package ido.el.
+ * Provide possibility to ask user for input before
+   expansions take place, not just on demand.
+
+Changes 3.1c vs 3.1b:
+ * Allow messages to be displayed in a separate buffer
+   "*Template Messages*" instead at point.
+ * Correct and improve header updating.
+ * Allow to use decoration command without defined comment.
+ * Miscellaneous.
+
+Changes 3.1b vs 3.1a:
+ * Extend use of M-x template-single-comment.
+ * Minor bug fixes.  Miscellaneous.
+
+Notes 3.1a:
+ * No need to update if no error has been signalled during
+   initialization.
+
+Changes 3.1a vs 3.1:
+ * Bug fix: on XEmacs, Initialization would fail without
+   menus "File" and "Edit" in menubar.
+
+Changes 3.1 vs 2.5b:
+ * Moved to SourceForge.net.  Less technical description on
+   web page.
+ * Menus work with Emacs-21, too.  Rename some menu entries.
+ * Don't search further for remote templates.  Nuke this
+   home/base directory stuff, stop search at root.
+ * Don't rely on command `ffap' to always add an entry to
+   `command-history' if the filename is read from terminal.
+   Special setup for ffap and html-helper.
+ * Make date/time formats work as names suggest.
+ * Delete unused commenting feature.
+ * Minor bug fix.  Miscellaneous.
+
+Notes 3.1:
+ * Previous home page was:
+      http://www.fmi.uni-passau.de/~wedler/template/
+
+Changes 2.5b vs 2.5a:
+ * Allow user to define a choice in the definition section
+   to be answered via `y-or-n-p'.
+ * Miscellaneous improvements.
+
+Changes 2.5a vs 2.5:
+ * Bug fix: would sometimes indent the current line when
+   using the menubar.
+ * Command to insert & expand a template file.
+ * Miscellaneous improvements.

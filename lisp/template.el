@@ -1,9 +1,9 @@
-;;; template.el --- use templates, decorate comments, auto-update buffers
+;;; template.el --- use templates, decorate comments, auto-update buffers -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995-2003, 2008, 2009, 2012, 2015 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2003, 2008, 2009, 2012, 2015, 2023, 2026 Free Software Foundation, Inc.
 ;;
 ;; Author: Christoph Wedler <wedler@users.sourceforge.net>
-;; Version: 3.3b
+;; Version: 3.4
 ;; Keywords: template, comment decoration, auto-updating, data, tools
 ;; X-URL: http://emacs-template.sourceforge.net/
 
@@ -24,13 +24,13 @@
 ;;; Commentary:
 
 ;; When you create a new file with Emacs, package Template supplies an initial
-;; buffer content via a template: a file with normal text and expansion
-;; forms. There is a menu to easily create such templates. You can also use new
+;; buffer content via a template: a file with normal text and expansion forms.
+;; There is a menu to easily create such templates.  You can also use new
 ;; commands to decorate comments and update the buffer contents.
 
 ;; The main difference between Template and other similar packages is that you
 ;; can define very flexible templates without having to learn Lisp or changing
-;; your Emacs init file. This package does not help Lisp programmers to define
+;; your Emacs init file.  This package does not help Lisp programmers to define
 ;; complex macros.
 
 ;; For details, check <http://emacs-template.sourceforge.net/> or, if you
@@ -63,7 +63,7 @@
 ;;   (custom-set-variables '(template-use-package t nil (template)))
 
 ;; Remark: adding some code (invoking template-initialize) to your init file
-;; like in previous versions of session.el still works.
+;; like in previous versions of template.el still works.
 
 ;; To customize, use `M-x customize-group RET template RET' or the customize
 ;; entry in menu Options.
@@ -74,7 +74,7 @@
 
 ;; General Emacs/XEmacs-compatibility compile-time macros
 (eval-when-compile
-  (require 'cl)
+  (require 'cl-lib)
   (defmacro cond-emacs-xemacs (&rest args)
     (cond-emacs-xemacs-macfn
      args "`cond-emacs-xemacs' must return exactly one element"))
@@ -140,9 +140,13 @@
 			     'ignore)))))))))))
 
 (eval-when-compile
-  (require 'cl)
+  (require 'cl-lib)
+  (defvar template-use-package)
   (defvar init-file-loaded)		; would be useful in Emacs, too...
-  (defvar file-name-buffer-file-type-alist))
+  (defvar file-name-buffer-file-type-alist)
+  (defvar html-helper-build-new-buffer)
+  (defvar html-helper-do-write-file-hooks)
+  (declare-function c-fill-paragraph "cc-cmds"))
 
 
 
@@ -151,7 +155,7 @@
 ;;;;##########################################################################
 
 
-(defconst template-version "3.3b"
+(defconst template-version "3.4"
   "Current version of package template.
 Check <http://emacs-template.sourceforge.net/> for the newest.")
 
@@ -283,7 +287,7 @@ also `template-max-column'."
 Used by function `template-comment-syntax'.  Elements look like
   (MODES-OR-REGEXP COMMENT-START COMMENT-END)
 
-If the current `major-mode' has a empty `comment-end' and a commenting
+If the current `major-mode' has an empty `comment-end' and a commenting
 command does not work at `point' with the usual `comment-start', we
 search for the first matching alternative comment syntax in this alist.
 
@@ -292,7 +296,7 @@ include the current major-mode, if this is a regexp, it must match the
 variable `buffer-file-name' without version, otherwise it must be
 non-nil.
 
-Then, COMMENT-START and COMMENT-END is used as the alternative comment
+Then, COMMENT-START and COMMENT-END are used as the alternative comment
 syntax if `comment-start-skip' matches COMMENT-START."
   :group 'template-comments
   :type '(repeat (group (choice (repeat :tag "In major modes" :value nil
@@ -303,7 +307,7 @@ syntax if `comment-start-skip' matches COMMENT-START."
 			(string :tag "Alt comment end" :value " */"))))
 
 (defcustom template-comment-indent t
-  "Non-nil means, indent single-line/block comments.
+  "Non-nil means indent single-line/block comments.
 Commands \\[template-single-comment] and \\[template-block-comment]
 indent the comment lines if this value is non-nil and the current major
 mode is not a member of `template-indent-mode-disable-list' or if this
@@ -420,14 +424,14 @@ LIMIT characters in buffer and return region according to GROUP's regexp
 group in REGEXP.
 
 Then, NEW is `eval'd.  If it is a string, it is considered as
-replacement for the region, otherwise REPLACE-FUN must be non-nil.
+replacement for the region, otherwise REPLACEMENT-FUN must be non-nil.
 
 Then, ask user for confirmation with PROMPT where %s is substituted by
 the buffer name if PROMPT is a string and `template-auto-update' is not
 t.
 
-Finally, REPLACEMENT-FUN is called the `eval'd NEW and the beginning and
-the end of the region returned by TEST.  If REPLACEMENT-FUN is nil, just
+Finally, REPLACEMENT-FUN is called with the `eval'd NEW and the beginning
+and the end of the region returned by TEST.  If REPLACEMENT-FUN is nil, just
 replace the region by the `eval'd NEW."
   :group 'template-updating
   :type '(repeat (group (choice (repeat :tag "In major modes" :value nil
@@ -453,19 +457,27 @@ replace the region by the `eval'd NEW."
 
 (defcustom template-header-regexp-alist
   '(("@(#)\\([^ \t\n]+\\)" . 1)
-    ("^%s[ \t]*\\([^ \t\n%s][^ \t\n]*\\)[ \t]+--" . 1))
+    ("^%s[ \t]*\\([^ \t\n%s][^ \t\n]*\\)[ \t]+--+[ \t]" . 1))
   "Alist of regexps matching the file name in the header.
-The `car' of each element is the REGEXP with %s, if present, substituted
-by the comment start.  A second %s, if present, is substitud by a single
-letter non-alpha comment start, or the empty string otherwise.
+The `car' of each element is the REGEXP, which might contain one or two
+%s specifications which are substituted according to the comment start:
 
-The `cdr' is the regexp group to be replaced.  Used by
-\\[template-update-header].
+ - If the comment start has length one and is not an ASCII letter, the
+   first %s is replaced by the regexp-quoted comment start appended with
+   `+', the second %s is replaced by the not regexp-quoted comment start,
+   or by the empty string if the comment start is `]'.
+ - If the comment start is an ASCII letter or has length greater than 1,
+   the first %s is replaced by the regexp-quoted comment start, the
+   second %s is replaced by the empty string.
 
-The comment start is evaluated from `comment-start', the first character
-in the buffer or \"#\".  It is assumed that a non-alpha single character
-comment start may be repeated.  For example, the substituted regexp in
-`emacs-lisp-mode' is \"\;+\", in `c++-mode' \"//\"."
+Remark: the second %s should be at the end of a regexp bracket expression.
+
+The comment start is usually the `comment-start' without final spaces.
+If the major mode does not define a `comment-start', it is assumed to be the
+first character in the line if that is not an ASCII letter, or \"#\".
+
+The `cdr' is the regexp group to be replaced by the buffer file name,
+sans its directory and versions.  Used by \\[template-update-header]."
   :group 'template-updating
   :type '(repeat (cons :format "%v"
 		       regexp
@@ -538,7 +550,7 @@ See `template-derivation-alist' for details."
   "If non-nil, function used to determine whether to stop derivation.
 If non-nil, function is called with argument DIR.  If it returns t,
 `template-derivation' stops to search for more project specific
-templates, i\.e\., just searches in `template-default-directories'."
+templates, i.e., just searches in `template-default-directories'."
   :group 'template-derivation
   :type '(choice (const :tag "Never" nil)
 		 function))
@@ -662,9 +674,9 @@ template derivation searches for first readable file with extension
 ;;;===========================================================================
 
 (defcustom template-confirm-insecure t
-  "*Non-nil means, ask whether to use insecure template expansions.
+  "*Non-nil means ask whether to use insecure template expansions.
 Only set this to nil if you ALWAYS check template files before using
-it!"
+them!"
   :group 'template-expansion
   :type 'boolean)
 
@@ -712,7 +724,7 @@ If no :before message has been defined before, use, if non-nil,
 
 (defcustom template-message-register-intro
   "Template has defined the following registers:"
-  "Default intro message used before listing user defined prompts.
+  "Default intro message used before listing user defined registers.
 Used with :after messages, see `template-message-register-format'."
   :group 'template-miscellaneous
   :type '(choice (const :tag "None" nil)
@@ -724,7 +736,7 @@ If non-nil, user defined text registers will be listed.  Registers can
 be defined as specified in the docstring of `template-definition-start'.
 For each register CHAR with contents CONTENTS and optional comment
 COMMENT, this format string will be used with substitution CHAR/%c,
-CONTENT/%s and \(COMMENT/%s or \"\"/%s).
+CONTENTS/%s and \(COMMENT/%s or \"\"/%s).
 
 The list of register definitions will be displayed:
  - at point if `template-message-buffer' is nil,
@@ -776,7 +788,7 @@ nothing.  See `template-definition-start'."
 
 (defcustom template-expansion-format "(>>>%s<<<)"
   "Format string for expansion forms.
-Is a expansion form with substitution KEY/%s.  The value should
+This is an expansion form with substitution KEY/%s.  The value should
 correspond with `template-expansion-regexp'.  Used by
 `template-insert-form'."
   :group 'template-expansion
@@ -812,7 +824,7 @@ and CLOSE is not expanded.  If you change OPEN, you should change key
   :type '(cons (string :tag "Open tag") (string :tag "Close tag")))
 
 (defcustom template-register-regexp "\\`[0-9]\\'"
-  "*Regexp matching keys for storing point positions in registers.
+  "*Regexp matching expansion keys for storing point positions in registers.
 These keys use function `template-register' as the default expansion
 instead of function `template-read'.  The register in which position is
 stored is the one identified by the last character in the matched
@@ -888,7 +900,7 @@ definition section.  See `template-definition-start'.
 The default predefined expansion forms are --default is inserting--:
   (>>>POINT<<<)       set point
   (>>>MARK<<<)        set mark, jump to it with \\[exchange-point-and-mark]
-  (>>>DIR<<<)         directory: /home/clstaff/wedler/lib/
+  (>>>DIR<<<)         directory: /home/wedler/lib/
   (>>>PACKAGE<<<)     package path, i.e. path from template directory
       to file directory, separated by dots instead slashes
   (>>>FILE<<<)        file w/o directory: text1.txt
@@ -897,25 +909,25 @@ The default predefined expansion forms are --default is inserting--:
   (>>>FILE_NUM<<<)    number in name: 1
   (>>>FILE_EXT<<<)    extension: txt
   (>>>FILE_UPCASE<<<) upcase file name w/o extension: TEXT1
-  (>>>DATE<<<)        date using `template-date-format': 11 Jan 1999
+  (>>>DATE<<<)        date using `template-date-format': 11 Jan 2025
   (>>>TIME<<<)        time using `template-time-format': 11:58:49
-  (>>>YEAR<<<)        the year: 1999
-  (>>>ISO_DATE<<<)    ISO 8601 date: 1999-01-11
-  (>>>VC_DATE<<<)     UTC date/time for vc: 1999/01/11 10:58:49
+  (>>>YEAR<<<)        the year: 2025
+  (>>>ISO_DATE<<<)    ISO 8601 date: 2025-01-11
+  (>>>VC_DATE<<<)     UTC date/time for vc: 2025/01/11 10:58:49
   (>>>COMMENT<<<)     ask user for initial comment
   (>>>AUTHOR<<<)      author, i.e., `user-mail-address'
   (>>>USER_NAME<<<)   user name: Christoph Wedler
   (>>>LOGIN_NAME<<<)  login name: wedler
-  (>>>HOST_ADDR<<<)   Host address: fmi.uni-passau.de
+  (>>>HOST_ADDR<<<)   Host address: users.sourceforge.net
   (>>>LITERAL<<<)     literal text up to (>>>/LITERAL<<<)
   (>>>ZERO_FORM<<<)   zero form, i.e., insert nothing.  Useful to insert
       a text part matched by `template-expansion-regexp' literally.
 
 There are aliases with one-letter keys, see `template-key-alias-alist'.
 
-It is useful to follow the following conventions: upper case keys for
-predefined extensions, lower case and digits for per-template and the
-following default expansions:
+It is useful to follow the following conventions: all-upper case keys
+for predefined extensions, lower case and digits for per-template and
+the following default expansions:
   (>>>0<<<) to (>>>9<<<)  set registers 0 to 9, jump to it with
       \\[jump-to-register] 0 etc., see `template-register-regexp'
   (>>>x<<<) where x is any unused letter sequence: ask user.")
@@ -948,7 +960,7 @@ Used for `template-expansion-alist' and
 (defcustom template-definition-start
   ">>>TEMPLATE-DEFINITION-SECTION<<<"
   "Header for the per-template definition section.
-The region following the the first match of this string defines the
+The region following the first match of this string defines the
 per-template definition section.  The region will be deleted before the
 actual expansion, see `template-new-file'.  If you use the \"Local
 Variables:\" section, define it before this region.
@@ -961,7 +973,7 @@ by `template-expansion-regexp' which might shadow those in
 `template-default-expansion-alist', useful for inserting text matched by
 `template-expansion-regexp' literally.
 
-  (\"KEY\". CHAR): CHAR is the register where the current buffer
+  (\"KEY\" . CHAR): CHAR is the register where the current buffer
 position is stored, see `template-register-regexp'.
 
   (\"KEY\" \"PROMPT\" \"PREFIX\" \"SUFFIX\" \"DEFAULT\" POLICY) where
@@ -986,26 +998,37 @@ The y-case and the n-case are optional and can be exchanged.
 the time of the replacement, use `template-string-default' as format
 string for SYMBOL.
 
-  (\"KEY\" COMMAND \. PREFIX): COMMAND is a symbol or a vector and is
-called with `command-execute' after setting `prefix-arg' to PREFIX, not
-evaluated.  If COMMANDs symbol property `template-secure-command' is
-nil, the form is insecure.  If that symbol property is a function, it is
-called with PREFIX to check whether COMMAND could be called directly
-with PREFIX as remaining arguments.
+Commands and SEXPRs can be executed during expansions, and before and
+after expansions:
 
-  (\"KEY\" SEXPR...): evaluate SEXPR during the expansion, see
-`template-expansion-alist' for examples.  This form is insecure.
+  (\"KEY\" COMMAND \. PREFIX): execute COMMAND during the expansion.
+COMMAND is a symbol or a vector and is called with `command-execute'
+after setting `prefix-arg' to PREFIX, not evaluated.  If COMMANDs symbol
+property `template-secure-command' is t, the form is secure.  If it is a
+function, it is called with PREFIX and returns non-nil if it is safe.
+If the function returns `non-interactive`, COMMAND is called
+non-interactively.  If neither t nor a function, the form is insecure.
+
+  (:before COMMAND \. PREFIX) and (:after COMMAND \. PREFIX): like
+\(\"KEY\" COMMAND \. PREFIX), but the command is not executed during
+expansion, but before or after, respectively.
+
+  (\"KEY\" SEXPR...): evaluate SEXPRs during the expansion, where each
+SEXPR is a cons.  This form is insecure.
+
+  (:before SEXPR...) and (:after SEXPR...) like (\"KEY\" SEXPR...),
+but the sexprs are not executed during expansion, but before or after,
+respectively.
+
+  (VARIABLE . VALUE): bind SYMBOL's local value to VALUE, not evaluated.
+This form is only secure if VARIABLE has a symbol property
+`template-secure-value' which returns non-nil when applied to VALUE, not
+evaluated.  This form is useful for variables which determine the
+expansion, like `template-time-format' and `template-date-format'.  For
+local variables in your new file, use the normal way via the \"Local
+Variables:\" section.
 
 There are other per-template definitions:
-
-  \"MESSAGE\": additional line displayed at point until first user event
-or after `template-message-timeout' seconds.  The lines are displayed
-with face in `template-message-face'.  With active form selector
-:before, define a message which is displayed in
-`template-message-buffer' before the exansion has started.  With active
-form selector :after, define a message which is displayed in
-`template-message-buffer' after the exansion has taken place.  To
-define interactively, use \\[template-define-message].
 
   (CHAR \. \"CONTENTS\"): Set register CHAR to have contents CONTENTS.
 CONTENTS can then be inserted into a buffer with \\[insert-register] CHAR.
@@ -1013,37 +1036,37 @@ CONTENTS can then be inserted into a buffer with \\[insert-register] CHAR.
   (CHAR \"CONTENTS\" COMMENT) where COMMENT is optional: Set register
 CHAR to have contents CONTENTS.  CONTENTS can then be inserted into a
 buffer with \\[insert-register] CHAR.  Also display an additional line
-at point to show the contents with COMMENT.  To define, use
-\\[template-define-register].
+to show the contents with COMMENT, according to the message selector,
+see below, TODO: REALLY?.  To define, use \\[template-define-register].
 
-The following forms depend on the active form selector which is the last
-of the following expansion forms:
- - :before: \"MESSAGE\" will be displayed before the expansion
- - :after: \"MESSAGE\" will be displayed after the expansion
- - :eval-before: execute COMMAND and SEXPR before expansion
- - :eval-after: execute COMMAND and SEXPR after expansion
- - nil, deprecated: with the first form, the active form selector is
-   :eval-before, with the second, it is :eval-after.
+  \"MESSAGE\": additional line displayed at point (or in extra buffer)
+until first user event or after `template-message-timeout' seconds.
+The lines are displayed with face in `template-message-face'.  To
+define interactively, use \\[template-define-message].
 
-  (VARIABLE . VALUE): set SYMBOL's local value to VALUE, not evaluated.
-This form is only secure if VARIABLE has a symbol property
-`template-secure-value' which returns non-nil when applied to VALUE, not
-evaluated.  This form is useful for variables which determine the
-expansion, like `template-time-format' and `template-date-format'.  For
-local variables in your new file, use the normal way via the \"Local
-Variables:\" section.  The active form selector must not be :eval-before
-or :eval-after.
+  `:before', `:after', or `:point': selects a new output for messages.
+After message selector `:before', defined messages are displayed in
+`template-message-buffer' before the exansions have started.  After
+selector `:after', defined messages are displayed in that buffer after
+all the expansions have been done.  After message selector `:point',
+display at point, like all messages before any message selector.
 
-  COMMAND: COMMAND is a symbol or a vector and is called with
-`command-execute' before the expansion with form selector :eval-before,
-and after the expansion with form selector :eval-after.  If COMMANDs
-symbol property `template-secure-command' is nil, the form is insecure.
-You should use the safe command `normal-mode' in the pre-expansion forms
-if the expansion forms depend on the correct major mode.
+There are the following deprecated forms:
 
-  SEXPR: evaluate SEXPR before the expansion with form selector
-:eval-before, and after the expansion with form selector :eval-after.
-This form is insecure.
+  `:eval-before' and `:eval-after' are deprecated command selectors and
+enable the next expansion forms.  They also switch the message selector
+back to `:point' and disable the use of (VARIABLE . VALUE).
+
+  COMMAND where COMMAND is a symbol or a vector: like (:before COMMAND)
+with deprecated form selector `:eval-before', and like (:after COMMAND)
+with deprecated form selector `:eval-after'.
+
+  SEXPR where SEXPR is a cons not covered by another expansion form:
+like (:before SEXPR) with deprecated form selector `:eval-before', and
+like (:after SEXPR) with deprecated form selector `:eval-after'.
+
+  nil is a deprecated command selector: works like `:eval-before' on
+first occurrence, and like `:eval-after' on second occurrence.
 
 If any insecure forms have been used, the user of the template will be
 asked whether to use the template, see `template-confirm-insecure'."
@@ -1140,7 +1163,7 @@ style to use.  The length of the resulting line is determined by
 ;;;###autoload
 (defun template-block-comment (&optional arg)
   "Decorate the current block of comment-only lines with dashes and alike.
-That is, surround the the contiguous comment-only lines around point
+That is, surround the contiguous comment-only lines around point
 with extra lines containing dashes and alike and to put the correct
 number of newlines around the block.
 
@@ -1242,8 +1265,10 @@ Return nil, if no commenting command can be used, i.e., if point is not
 in a comment-only line.  Return `none' if the `major-mode' doesn't
 define a comment syntax.  Return `delimited' if point is between
 `comment-start' and a non-empty `comment-end'.  Return `single' if point
-is in a comment line where the comment syntax has a empty `comment-end',
-return `block' if point is in an empty line after such a comment line."
+is in a comment line where the comment syntax has an empty `comment-end',
+return `block' if point is in an empty line after such a comment line.
+Return `cont' if point follows a comment start found later in the line
+\(continuation case recovered from an error)."
   (if (and comment-start comment-start-skip)
       (save-excursion
 	(let ((orig (point)))
@@ -1275,7 +1300,7 @@ a non-empty `comment-end' where START-POS is the position of the first
 character inside the comment.  Move point to first character after the
 comment start or the first non-whitespace character on this line.
 
-ORIG should be the same as `point' or in a empty line after `point'.
+ORIG should be the same as `point' or in an empty line after `point'.
 
 If optional argument NO-INDENT is nil, indents the current line
 according to `template-comment-indent' and `indent-according-to-mode'.
@@ -1363,7 +1388,7 @@ argument SYNTAX, see `template-comment-syntax'."
       (setq str (car (pop alist)))
       (when str
 	(setq i (length str))
-	(while (>= (decf i) 0)
+	(while (>= (cl-decf i) 0)
 	  ;; (pushnew (aref str i) chars), but requires cl at runtime:
 	  (or (memq (setq c (aref str i)) chars) (push c chars)))))
     (concat "\\("
@@ -1382,7 +1407,7 @@ argument SYNTAX, see `template-comment-syntax'."
 (defun template-comment-specification (arg old syntax)
   "Return the comment specification to use.
 See `template-comment-specification-alist' for details.  ARG is the
-prefix argument, OLD the SEPARATOR of the old comment style and SYNTAX
+prefix argument, OLD is the separator of the old comment style and SYNTAX
 is the comment syntax returned by `template-comment-syntax'."
   (and arg (setq arg (prefix-numeric-value arg)))
   ;; assumes point-at-indentation
@@ -1413,7 +1438,7 @@ is the comment syntax returned by `template-comment-syntax'."
 ;;;===========================================================================
 
 (defun template-insert-newline (string &optional limit start-limit)
-  "Deletes blank lines around point and insert STRING.
+  "Delete blank lines around point and insert STRING.
 After optional LIMIT and before optional START-LIMIT, no character will
 be deleted."
   (let ((start (save-excursion
@@ -1586,8 +1611,8 @@ there is no filename in the header.  See `template-header-lines' and
 	  (if (string-match "[A-Za-z]\\|.." comment-regexp)
 	      (setq comment-regexp (regexp-quote comment-regexp)
 		    disallowed "")
-	    (or (eq comment-regexp '(?\]))
-		(setq disallowed comment-regexp))
+            (or (equal comment-regexp "]")
+	        (setq disallowed comment-regexp))
 	    (setq comment-regexp (concat (regexp-quote comment-regexp) "+")))
 	  (while alist
 	    (goto-char (point-min))
@@ -1667,6 +1692,7 @@ expansions DIR, FILE, FILE_SANS, FILE_EXT and others in
   "Internal variable.  :eval-after commands and sexps.")
 (defvar template-local-variable-list nil
   "Internal variable.  Local variables to set in template expansion.")
+;; Each element looks like ((SYMBOL . TEMPLATE-VALUE) . ORIG-VALUE)
 
 (defvar template-ffap-file-finder nil
   "Value used inside `template-ffap-find-file'.
@@ -1704,7 +1730,7 @@ This function always considers template files as text files."
 (defun template-not-found-function ()
   "Use a template when visiting a non-existent file.
 See `template-auto-insert' and `template-find-file-commands'.  Function
-in `find-file-not-found-hooks'."
+in `find-file-not-found-functions'."
   (and template-auto-insert
        template-use-package
        (not buffer-read-only) (bobp) (eobp)
@@ -1717,14 +1743,15 @@ in `find-file-not-found-hooks'."
 		      template-find-file-commands)))
        (let ((template (cdr (template-derivation buffer-file-name t t))))
 	 (and template
-	      (file-readable-p template)
+	      (file-readable-p template) ; template-derivation does not return directory
 	      (or (eq template-auto-insert t)
 		  (y-or-n-p
 		   (format "Use template %s? "
 			   (cond-emacs-xemacs
 			    (abbreviate-file-name template :XEMACS t)))))
 	      (progn
-		(template-new-file nil template)
+                (normal-mode t)
+		(template-new-file :auto template)
 		(setq this-command 'session-disable)
 		t)))))
 
@@ -1771,7 +1798,7 @@ Using a template for inserting some text consists of:
   (interactive (template-expand-template-interactive))
   (save-restriction
     (narrow-to-region (point) (point))
-    (template-new-file nil template t)))
+    (template-new-file nil template)))
 
 (defun template-new-file-interactive ()
   "Interactive specification for `template-new-file'.
@@ -1798,7 +1825,7 @@ Return \(FILE TEMPLATE)."
 	    (expand-file-name tpl (file-name-directory (cdr use)))))))
 
 ;;;###autoload
-(defun template-new-file (file template &optional with-undo)
+(defun template-new-file (file template)
   "Open a new file FILE by using a TEMPLATE.
 Using a template for creating a new file consists of, steps 1 to 3 are
 only executed when called interactively:
@@ -1810,32 +1837,42 @@ only executed when called interactively:
      the same directory and if we have a template \"exercise.tex.tpl\",
      the file name is refined to \"exercise3.tex\".  This is turned off
      when \\[template-new-file] is called with a prefix argument.
-  4. Template insertion: insert the template file into the empty buffer.
+  4. Template insertion: insert the content of template file into a new
+     buffer, with FILE as its `buffer-file-name', run `normal-mode' as
+     usual.
   5. Read per-template expansion definition section starting at
      `template-definition-start' and delete it.
-  6. Display :before message in `template-message-buffer'.
-  7. Execute pre-expansion commands defined in the definition section.
-  8. Set local variables defined in the definition section.
+  6. Set variables defined in the definition section.
+  7. Display :before message in `template-message-buffer'.
+  8. Execute pre-expansion commands defined in the definition section.
   9. Ask user for strings to insert for prompts to be executed
      immediately, see `template-definition-start'.
  10. Expansion: expand the expansion forms (text matched by
      `template-expansion-regexp') They are defined in the definition
      section, in `template-expansion-alist', or provided by default, see
      `template-expansion-regexp' and `template-register-regexp'.
- 11. Execute post-expansion commands defined in the definition section.
- 12. Run `normal-mode' and functions in `find-file-hooks'.
- 13. Update header according to `template-update-header' with argument
+ 11. Update header according to `template-update-header' with argument
     `if-exists'.
- 14. Display :after message in `template-message-buffer'.
- 15. Report: display a temporary message at point defined in the
-     definition section and an automatically generated message in the
-     minibuffer area, see `template-message-timeout'.
+ 12. Execute post-expansion commands defined in the definition section.
+ 13. Display :after message in `template-message-buffer', :point message
+     at point defined in the definition section, and a generated
+     message in the minibuffer area, see `template-message-timeout'.
+ 14. Set point and mark if specified in the definitions section.
+ 15. Restore original values for the variables set in step 6.
 
-If optional WITH-UNDO is non-nil, store corresponding changes in
-`buffer-undo-list'.  If FILE is nil, the buffer for FILE has already
-been created and the accessible part will be replaced by the expanded
-template.  If TEMPLATE is nil (empty input when called interactively),
-do not use a template."
+If this function is not called interactively, the internal
+variable `template-file' must have been set, e.g. by function
+`template-derivation'.
+
+If FILE is a symbol, no new buffer will be created, the current
+buffer is where the template file will be inserted and expanded.
+
+If FILE is not nil, do not store undo information for the
+expansions, set the modified flag only if user input has
+occurred.
+
+If TEMPLATE is nil (empty input when called interactively), do
+not use a template."
   (interactive (template-new-file-interactive))
   (setq template-template template)
   ;; check template and file name --------------------------------------------
@@ -1850,34 +1887,40 @@ do not use a template."
 	(template-find-template template)
 	(error "You should create this template first"))))
   ;; switch to buffer of new file --------------------------------------------
-  (if (not file)
+  (if (symbolp file)
       (switch-to-buffer (current-buffer))
     (and (or (get-file-buffer file) (file-exists-p file))
 	 (null (yes-or-no-p (format "File %s exists.  Delete contents? " file)))
 	 (error "Cannot use templates for existing files"))
-    (let ((auto-mode-alist nil)
-	  (enable-local-variables nil)
-	  (find-file-not-found-hooks nil)
-	  (enable-local-eval nil))
+    (let ((find-file-not-found-functions nil))
       (switch-to-buffer (find-file-noselect file))))
-  ;; insert template and do expansiosn ---------------------------------------
+  ;; insert template and do expansions ---------------------------------------
   (when template
-    (unless with-undo
+    (when file
       (setq buffer-undo-list t))
     (template-find-template template t)	; Step 4
-    (unless with-undo
+    (when file
       (set-buffer-modified-p nil))
     (template-new-file-init)
     (template-new-file-definitions)	; Step 5
-    (template-new-file-expansions)	; Steps 6..11
-    (save-restriction
-      (widen)
-      (normal-mode t)			; Step 12
-      (unless with-undo
-	(template-update-header 'if-exists)) ; Step 13
-      (run-hooks 'find-file-hooks))
-    (template-new-file-messages with-undo) ; Steps 14..15
-    (unless with-undo
+    (let ((unbound (make-symbol " -unbound-"))
+          (a-local (make-symbol " -auto-local-")))
+      (dolist (v template-local-variable-list) ; Step 6
+        (let ((sym (caar v)))
+          (setcdr v (cond ((and (local-variable-if-set-p sym)
+                                (not (local-variable-p sym)))
+                           a-local)
+                          ((boundp sym) (symbol-value sym))
+                          (t unbound)))
+          (set sym (cdar v))))
+      (unwind-protect
+          (template-new-file-expansions) ; Steps 7..13
+        (dolist (v template-local-variable-list) ; Step 15
+          (cond ((eq (cdr v) a-local) (kill-local-variable (caar v)))
+                ((eq (cdr v) unbound) (makunbound (caar v)))
+                (t                    (set (caar v) (cdr v)))))))
+    (when file
+      (normal-mode t)           ; redo for -*- spec etc in template, local vars
       (setq buffer-undo-list nil)
       (set-buffer-modified-p template-modified))))
 
@@ -1910,12 +1953,8 @@ Step 5 in `template-new-file'.  See also `template-definition-start'."
       (condition-case ()
 	  (while t
 	    (let ((expansion-rule (read (current-buffer))))
-	      (cond ((consp expansion-rule)
-		     (template-process-cons-definition (car expansion-rule)
-						       (cdr expansion-rule)
-						       form-selector))
-		    ((memq expansion-rule
-			   '(:before :after :eval-before :eval-after))
+	      (cond ((memq expansion-rule
+			   '(:before :after :eval-before :eval-after :point))
 		     (setq form-selector expansion-rule))
 		    ((null expansion-rule)
 		     (setq form-selector
@@ -1927,7 +1966,7 @@ Step 5 in `template-new-file'.  See also `template-definition-start'."
 				  (error "Used obsolete nil form with new form selectors")))))
 		    (t
 		     (template-process-definition expansion-rule form-selector)))))
-	(error nil))
+	(error nil))                    ; TODO: check
       (skip-chars-forward " \t\n\f")
       (or (eobp)
 	  (error "Invalid definition in line %d (pos %d) of the template file"
@@ -1940,19 +1979,19 @@ Step 5 in `template-new-file'.  See also `template-definition-start'."
 
 (defun template-new-file-expansions ()
   "Perform template replacements in current buffer.
-Steps 6 to 11 in `template-new-file'."
+Steps 6 to 13 in `template-new-file'."
   ;; prepare ---------------------------------------------------------------
-  (template-display-messages template-before-messages) ; Step 6
-  (eval (cons 'progn (nreverse template-pre-command-list))) ; Step 7
-  (dolist (v template-local-variable-list)
-    (set (make-local-variable (car v)) (cdr v))) ; Step 8
+  (template-display-messages template-before-messages
+                             'template-message-prompt-format
+                             template-message-prompt-intro) ; Step 7
+  (eval (cons 'progn (nreverse template-pre-command-list))) ; Step 8
   (goto-char (point-min))
   (dolist (entry template-local-alist)
     (and (null (cddr entry))
 	 (eq (car-safe (cadr entry)) 'template-read)
-	 (eval (list* 'template-read-from-minibuffer ; Step 9
-		      (car entry) (cdadr entry)))))
-  ;; expand ----------------------------------------------------------------
+	 (eval (cl-list* 'template-read-from-minibuffer ; Step 9
+		         (car entry) (cdadr entry)))))
+  ;; expand (Step 10) ------------------------------------------------------
   (while (re-search-forward template-expansion-regexp nil t)
     (setq template-current		; Step 10
 	  (buffer-substring (match-beginning 1) (match-end 1)))
@@ -1971,12 +2010,18 @@ Steps 6 to 11 in `template-new-file'."
 	    (t
 	     (template-read (format "Replacement for `%s': "
 				    template-current))))))
-  (eval (cons 'progn (nreverse template-post-command-list)))) ; Step 11
+  (save-restriction
+    (widen)
+    (template-update-header 'if-exists)) ; Step 11
+  (eval (cons 'progn (nreverse template-post-command-list))) ; Step 12
+  (template-new-file-messages)) ; Step 13-14
 
-(defun template-new-file-messages (with-undo)
+(defun template-new-file-messages ()
   "Display messages after template replacements in current buffer.
-Steps 14 and 15 in `template-new-file'."
-  (template-display-messages template-after-messages)
+Steps 13 and 14 in `template-new-file'."
+  (template-display-messages template-after-messages         ; Step 13
+                             'template-message-register-format
+                             template-message-register-intro)
   (cond ((null template-register-alist)
 	 (message "%s, no buffer location in register"
 		  (if template-mark "Mark set" "No mark")))
@@ -1989,7 +2034,6 @@ Steps 14 and 15 in `template-new-file'."
 				    (char-to-string (car x)))))
 			       (nreverse template-register-alist)
 			       ", "))))
-  (or with-undo (set-buffer-modified-p template-modified))
   (goto-char (point-min))
   (when template-point
     (goto-char template-point)
@@ -2018,14 +2062,35 @@ Steps 14 and 15 in `template-new-file'."
       (delete-region beg end)))
   (recenter))
 
-(defun template-display-messages (messages)
-  "Display MESSAGES in buffer `template-message-buffer'."
-  (when (and messages template-message-buffer)
-    (setq messages (nreverse messages))
-    (with-output-to-temp-buffer template-message-buffer
-      (while messages
-	(princ (pop messages))
-	(if messages (princ "\n"))))))
+(defun template-display-messages (messages &optional first intro)
+  "Display MESSAGES in buffer `template-message-buffer'.
+Optional argument FIRST is a symbol like
+`template-message-prompt-format' or `template-message-register-format'.
+Optional argument INTRO is a string displayed to the user."
+  (when template-message-buffer
+    (let ((ignore (car messages)))
+      ;; delete final messages without output
+      (while (and (consp ignore)
+                  (null (symbol-value (car ignore))))
+        (setq ignore (pop messages)))
+      (if (null messages)
+          (when (get-buffer template-message-buffer)
+            (bury-buffer template-message-buffer))
+        (with-output-to-temp-buffer template-message-buffer
+          (setq messages (nreverse messages))
+          (let ((msg (and intro (symbol-value first)
+                          (eq (car-safe (car messages)) first))))
+            (when msg
+              (princ intro))
+            (while messages
+              (when msg
+                (princ "\n"))
+              (setq msg (car messages))
+              (cond ((stringp msg)
+                     (princ msg))
+                    ((setq msg (symbol-value (car msg)))
+                     (princ (apply 'format msg (cdar messages)))))
+              (setq messages (cdr messages)))))))))
 
 
 ;;;===========================================================================
@@ -2035,11 +2100,13 @@ Steps 14 and 15 in `template-new-file'."
 (defun template-derivation (full arg &optional no-default)
   "Derive template file name and do file name refinement.
 Return (REFINED . TEMPLATE) where REFINED is the refined version of FULL
-and TEMPLATE and template file name, see `template-derivation-alist'.
+and TEMPLATE is the template file name, see `template-derivation-alist'.
 FULL is the initial file name given by the user.  File name refinement
 is turned off when ARG is non-nil.  If optional argument NO-DEFAULT is
-non-nil, return nil instead (FULL \. \"~/.templates/DEFAULT.tpl\") if no
-matching entry can be found in `template-derivation-alist'."
+non-nil, return nil instead of (FULL . \"~/.templates/DEFAULT.tpl\") if
+no matching entry can be found in `template-derivation-alist'.
+
+This function sets the internal variable `template-file'."
   ;; Get all templates -------------------------------------------------------
   (setq template-all-templates nil)
   (let* ((dir (file-name-directory full))
@@ -2104,7 +2171,7 @@ matching entry can be found in `template-derivation-alist'."
 ;;;===========================================================================
 
 (defun template-make-directory (dir)
-  "Create DIR if it does not exists yet."
+  "Create DIR if it does not exist yet."
   (cond ((file-exists-p dir))
 	((yes-or-no-p (format "The directory %s does not exist.  Create? " dir))
 	 (make-directory dir t))
@@ -2131,23 +2198,42 @@ file name without its directory part DIR.  See `template-file'."
 ;;;===========================================================================
 ;;;  Process and translate definitions
 ;;;===========================================================================
+;; TODO: always use term `translate`: translate-cons, ...
+
+(defun template-process-definition (expansion-rule form-selector)
+  "Process definition in per-template definition section.
+Definition looks like EXPANSION-RULE.  Some special definitions depend on
+FORM-SELECTOR, see `template-definition-start' for details."
+  (cond ((consp expansion-rule)
+	 (template-process-cons-definition (car expansion-rule)
+					   (cdr expansion-rule)
+					   form-selector))
+        ((stringp expansion-rule) ; "MESSAGE"
+	 (cond ((eq form-selector :before)
+		(push expansion-rule template-before-messages))
+	       ((eq form-selector :after)
+		(push expansion-rule template-after-messages))
+	       (t
+		(push expansion-rule template-point-messages))))
+	((memq form-selector '(:eval-before :old-before)) ; deprecated
+	 (push (template-elisp-in-definition expansion-rule)
+	       template-pre-command-list))
+	((memq form-selector '(:eval-after :old-after)) ; deprecated
+	 (push (template-elisp-in-definition expansion-rule)
+	       template-post-command-list))
+	(t
+	 (error "Illegal template definition"))))
 
 (defun template-process-cons-definition (rule-head rule-def form-selector)
   "Process definition in per-template definition section.
 Definition looks like (RULE-HEAD . RULE-DEF).  Some special definitions
 depend on FORM-SELECTOR, see `template-definition-start' for details."
   (cond ((stringp rule-head)	; ("KEY" . xxx): ask user ------------
-	 (let ((msg (cond ((null template-message-prompt-format)
-			   nil)
-			  ((stringp rule-def) rule-def)
+	 (let ((msg (cond ((stringp rule-def) rule-def)
 			  ((and (consp rule-def) (stringp (car rule-def)))
 			   (car rule-def)))))
 	   (when msg			; list prompts in before-messages
-	     (or template-before-messages
-		 (null template-message-prompt-intro)
-		 (push template-message-prompt-intro
-		       template-before-messages))
-	     (push (format template-message-prompt-format msg)
+	     (push (list 'template-message-prompt-format msg)
 		   template-before-messages))
 	   (push (cons rule-head (template-translate-definition rule-def))
 		 template-local-alist)))
@@ -2158,55 +2244,37 @@ depend on FORM-SELECTOR, see `template-definition-start' for details."
 	       (set-register reg rule-def)
 	     (set-register reg (car rule-def))
 	     (when template-message-register-format
-	       (let ((msg (format template-message-register-format
-				  reg (car rule-def)
-				  (or (cadr rule-def) ""))))
-		 (if template-message-buffer
-		     (progn
-		       (if template-before-messages
-			   (push msg template-before-messages))
-		       (or template-after-messages
-			   (null template-message-register-intro)
-			   (push template-message-register-intro
-				 template-after-messages))
-		       (push msg template-after-messages))
-		   (push msg template-point-messages)))))))
-	(t
-	 (template-process-definition (cons rule-head rule-def) form-selector))))
-
-(defun template-process-definition (expansion-rule form-selector)
-  "Process definition in per-template definition section.
-Definition looks EXPANSION_RULE.  Some special definitions depend on
-FORM-SELECTOR, see `template-definition-start' for details."
-  (cond ((stringp expansion-rule) ; "MESSAGE" --------------------------------
-	 (cond ((eq form-selector :before)
-		(push expansion-rule template-before-messages))
-	       ((eq form-selector :after)
-		(push expansion-rule template-after-messages))
-	       (t
-		(push expansion-rule template-point-messages))))
-	;; set var, execute command and sexpr ----------------------
-	((and (memq form-selector '(nil :before :after))
-	      (consp expansion-rule)
-	      (symbolp (car expansion-rule)))
-	 ;; [TODO]: also use `risky-local-variable' etc?
-	 (or (and (functionp (get (car expansion-rule)
-				  'template-secure-value))
-		  (funcall (get (car expansion-rule)
-				'template-secure-value)
-			   (cdr expansion-rule)))
-	     (setq template-secure nil))
-	 (push expansion-rule template-local-variable-list))
-	((memq form-selector '(:eval-before :old-before))
-	 (push (template-elisp-in-definition expansion-rule)
+	       (let ((msg (list 'template-message-register-format
+                                reg (car rule-def)
+                                (or (cadr rule-def) ""))))
+		 (when template-message-buffer
+                   (when (stringp (car template-before-messages))
+                     (push msg template-before-messages))
+                   (push msg template-after-messages)))))))
+        ;; :before and :after commands and sexprs -------------------------------
+        ((eq rule-head :before)
+	 (push (template-elisp-in-definition (car rule-def) (cdr rule-def))
 	       template-pre-command-list))
-	((memq form-selector '(:eval-after :old-after))
-	 (push (template-elisp-in-definition expansion-rule)
+        ((eq rule-head :after)
+	 (push (template-elisp-in-definition (car rule-def) (cdr rule-def))
 	       template-post-command-list))
+	((memq form-selector '(:eval-before :old-before)) ; deprecated
+	 (push (template-elisp-in-definition (cons rule-head rule-def))
+	       template-pre-command-list))
+	((memq form-selector '(:eval-after :old-after)) ; deprecated
+	 (push (template-elisp-in-definition (cons rule-head rule-def))
+	       template-post-command-list))
+	;; bind var -------------------------------------------------------------
+	((symbolp rule-head)
+	 ;; [TODO]: also use `risky-local-variable' etc?
+         (let ((secure (get rule-head 'template-secure-value)))
+	   (unless (and (functionp secure) (funcall secure rule-def))
+	     (setq template-secure nil)))
+	 (push (list (cons rule-head rule-def)) template-local-variable-list))
 	(t
 	 (error "Illegal expansion rule"))))
 
-(defun template-translate-definition (def)
+(defun template-translate-definition (def) ; TODO: -> translate-expansion
   "Translate DEF of expansion and set `template-secure' accordingly."
   (cond ((null def) ; zero form
 	 nil)
@@ -2220,11 +2288,27 @@ FORM-SELECTOR, see `template-definition-start' for details."
 	 (if (consp (car-safe (cdr def)))
 	     `((template-choice ,(car def) (quote ,(cdr def))))
 	   `((template-read ,@(apply 'template-translate-read def)))))
-	((consp (car-safe def))
-	 (setq template-secure nil)
-	 def)
 	(t
 	 (list (template-elisp-in-definition (car def) (cdr def))))))
+
+(defun template-elisp-in-definition (first &optional rest) ; -> translate-action
+  "Return valid elisp definition and set `template-secure' accordingly.
+If FIRST is a cons, then FIRST and all items in REST are SEXPRs.
+If FIRST is a command, REST is the prefix argument."
+  (cond ((consp first)                  ; (SEXPR)...
+	 (setq template-secure nil)
+	 (if rest (cons 'progn (cons first rest)) first))
+	((or (symbolp first) (vectorp first))
+         (let* ((secure (and (symbolp first) (get first 'template-secure-command)))
+                (command (if (functionp secure) (funcall secure rest) (eq secure t))))
+           (unless command
+             (setq template-secure nil))
+           (if (eq command 'non-interactive)
+               `(apply (quote ,first) (quote ,rest))
+	     `(progn (setq prefix-arg (quote ,rest))
+		     (command-execute (quote ,first))))))
+	(t
+	 (error "Illegal form"))))
 
 (defun template-translate-read (prompt &optional prefix suffix default policy
 				       &rest nothing)
@@ -2237,28 +2321,8 @@ and will be quoted.  PROMPT is already checked, NOTHING must be nil."
 	       (symbolp policy)
 	       (null nothing))
     (error "Illegal form"))
-  (list* prompt prefix suffix default
-	 (and policy (list (list 'quote policy)))))
-
-(defun template-elisp-in-definition (def &optional prefix)
-  "Return valid elisp definition and set `template-secure' accordingly.
-DEF is the elisp form, PREFIX would be the prefix argument if DEF is a
-command."
-  (cond ((consp def)
-	 (setq template-secure nil)
-	 def)
-	((or (symbolp def) (vectorp def))
-	 (unless (and (symbolp def) (get def 'template-secure-command))
-	   (setq template-secure nil))
-	 (if (and (symbolp def)
-		  (functionp (get def 'template-secure-command))
-		  (listp prefix)
-		  (funcall (get def 'template-secure-command) prefix))
-	     `(apply (quote ,def) (quote ,prefix))
-	   `(progn (setq prefix-arg (quote ,prefix))
-		   (command-execute (quote ,def)))))
-	(t
-	 (error "Illegal form"))))
+  (cl-list* prompt prefix suffix default
+	    (and policy (list (list 'quote policy)))))
 
 
 ;;;===========================================================================
@@ -2346,15 +2410,15 @@ result is in `template-file'.  See `template-derivation-alist'."
   (template-default-file template raw num ext)
   (let* ((dir (car template-file))
 	 (full (expand-file-name (cadr template-file) dir)))
-    (when (if (string= (fourth template-file) "")
+    (when (if (string= (nth 3 template-file) "")
 	      auto-num
 	    (setq auto-num
 		  (and (or (get-file-buffer full)
 			   (file-readable-p full))
-		       (string-to-number (fourth template-file)))))
+		       (string-to-number (nth 3 template-file)))))
       (setq auto-num (1- auto-num)
-	    raw (third template-file)
-	    ext (fifth template-file))
+	    raw (nth 2 template-file)
+	    ext (nth 4 template-file))
       (dolist (buffer (buffer-list))
 	(let* ((file1 (buffer-file-name buffer))
 	       (dir1 (and file1 (file-name-directory file1))))
@@ -2399,13 +2463,14 @@ If FORMAT is not a string, it uses DEFAULT or the result of function
 	    (or default (current-time-string)))))
 (put 'template-insert-time 'template-secure-command
      (lambda (args)
-       (or (null args) (and (stringp (car args)) (null (cdr args))))))
+       (or (atom args) (not (stringp (car args))) (cdr args)
+           'non-interactive)))
 
 (defun template-insert-package (sep)
   "Insert package name into current buffer using separator SEP.
 The package name is considered the directory paths between the new
 file and the template file itself.  When SEP is non-nil, replace
-slashed and backslashes with SEP in the directory path.
+slashes and backslashes with SEP in the directory path.
 
 For example, with SEP=\".\" and the following paths:
  - template file: /someroot/TEMPLATE.java,
@@ -2453,7 +2518,8 @@ Do nothing unless KEY is nil or POLICY is `immediately'.  KEY is the
 current key of the expansion form.  For the other arguments, see
 `template-read'."
   (when (or (null key) (eq policy 'immediately))
-    (let* ((input (read-from-minibuffer prompt nil nil nil 'template-history))
+    (let* ((input (save-excursion
+                    (read-from-minibuffer prompt nil nil nil 'template-history)))
 	   (elem (cond ((string= input "") (or default ""))
 		       ((eq policy 'expand)
 			(concat prefix
@@ -2479,7 +2545,7 @@ current key of the expansion form.  For the other arguments, see
   "Ask user with PROMPT for a STRING to be inserted.
 If STRING is not \"\", insert PREFIX STRING SUFFIX, otherwise DEFAULT.
 If POLICY is nil or `immediately', do not ask if `template-current'
-appears another time as key in a expansion form.  If POLICY is `expand',
+appears another time as key in an expansion form.  If POLICY is `expand',
 the inserted region is searched for expansion forms where STRING is
 marked as a literal environment, see `template-literal-environment'."
   (setq template-modified t)
@@ -2500,13 +2566,13 @@ completion over all ANSWERs and insert corresponding TEXT if ANSWER is a
 string, otherwise ask a \"y or n\" question and use the result of
 `y-or-n-p' as ANSWER.  Expansion forms in TEXT will be expanded."
   (setq template-modified t)
-  (let ((pos (point)))
-    (insert (or (cdr (assoc (if (stringp (caar table))
-				(completing-read prompt table nil t nil
-						 'template-choice-history)
-			      (y-or-n-p prompt))
-			    table))
-		"")
+  (let ((pos (point))
+        (choice (save-excursion
+                  (if (stringp (caar table))
+		      (completing-read prompt table nil t nil
+                                       'template-choice-history)
+		    (y-or-n-p prompt)))))
+    (insert (or (cdr (assoc choice table)) "")
             ;; now make sure that (>>>LITERAL<<<) in TEXT
             ;; does not disable further expansions
 	    (format template-expansion-format
@@ -2541,7 +2607,7 @@ string, otherwise ask a \"y or n\" question and use the result of
 ;;;===========================================================================
 
 (defun template-buffer-template-p ()
-  "Return non-nil, if current buffer is likely to be a template file."
+  "Return non-nil if current buffer is likely to be a template file."
   (and buffer-file-name
        (string-match (concat (regexp-quote template-extension) "\\'")
 		     (file-name-sans-versions buffer-file-name))))
@@ -2682,14 +2748,14 @@ See `easy-menu-define' for the format of MENU."
   (template-add-submenu template-comment-menu :XEMACS '("Edit"))
   (template-add-submenu template-creation-menu :XEMACS '("Cmds" "Edit"))
   :EMACS
-  (and (boundp 'menu-bar-files-menu)
-       (define-key-after menu-bar-files-menu [template-new-file]
+  (and (boundp 'menu-bar-file-menu)
+       (define-key-after menu-bar-file-menu [template-new-file]
          '(menu-item "New File Using Template..." template-new-file
                      :enable (not (window-minibuffer-p
                                    (frame-selected-window
                                     menu-updating-frame)))
                      :help "Create a new file, using a template")
-         'dired))
+         'new-file))
   :XEMACS
   (and (featurep 'menubar)
        (find-menu-item default-menubar '("File"))
@@ -2702,9 +2768,9 @@ See `easy-menu-define' for the format of MENU."
 
 ;;;###autoload
 (defun template-initialize-do ()
-  "Initialized package template.  See variable `template-initialize'."
+  "Initialize package template.  See variable `template-initialize'."
   (when (and template-use-package
-	     (null (get 'template-initialize :initilized-with)))
+	     (null (get 'template-initialize :initialized-with)))
     (let ((regexp (concat (regexp-quote template-extension) "\\'")))
       (or (assoc regexp auto-mode-alist)
           (push (list regexp nil 'template-new-file) auto-mode-alist)))
@@ -2729,8 +2795,8 @@ See `easy-menu-define' for the format of MENU."
       (template-initialize-menus))
     (when (or (eq template-initialize t)
               (memq 'auto template-initialize))
-      (add-hook 'write-file-hooks 'template-update-buffer)
-      (add-hook 'find-file-not-found-hooks 'template-not-found-function t))
+      (add-hook 'write-file-functions 'template-update-buffer)
+      (add-hook 'find-file-not-found-functions 'template-not-found-function t))
     (when (or (eq template-initialize t)
               (memq 'ffap template-initialize))
       (or template-ffap-file-finder
@@ -2739,7 +2805,7 @@ See `easy-menu-define' for the format of MENU."
                     ffap-file-finder
                   (or (get 'ffap-file-finder 'saved-value) 'find-file))))
       (setq ffap-file-finder 'template-ffap-find-file))
-    (put 'template-initialize :initilized-with template-initialize)))
+    (put 'template-initialize :initialized-with template-initialize)))
 
 (defun template-initialize-and-set (symbol value)
   "Custom :set function for `template-use-package'.
@@ -2761,7 +2827,7 @@ package."
 If in use (see variable `template-initialize' for details):
  - use template files when visiting non-existing files,
  - update parts of the content when saving a buffer,
- - add keybindings are menus the first time the package is put into use."
+ - add keybindings and menus the first time the package is put into use."
   :group 'template
   :type '(boolean :on "in use" :off "not yet initialized or turned off"
 		  :help-echo "Use package Template, initialize if necessary.")
@@ -2772,7 +2838,7 @@ If in use (see variable `template-initialize' for details):
 (defun template-initialize (&rest _dummies)
   "Compatibility command to enable package template."
   (interactive)
-  (put 'template-initialize :initilized-with nil)
+  (put 'template-initialize :initialized-with nil)
   (custom-set-variables '(template-use-package t nil (template))))
 
 (provide 'template)

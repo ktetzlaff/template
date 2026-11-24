@@ -1,3 +1,232 @@
+2026-11-24  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.el 3.4.
+
+2026-11-21  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.el: Make file menu entry "New File Using Template..."
+	appear (again), after "Visit New File...".
+	(template-initialize-menus): Use `menu-bar-file-menu'.
+
+	* template.el: Expansions now work with the right major mode.
+	The change in v3.3c only made it work for `template-new-file'.
+	(template-not-found-function): Run `normal-mode'.
+
+	* template.el: In Emacs, switching to the new buffer during
+	minibuffer interaction could have disturbed template expansions.
+	Reported by Vincent Belaïche <vincentb1@users.sourceforge.net>.
+	(template-read-from-minibuffer, template-choice): Use
+	`save-excursion' around functions like `read-from-minibuffer'.
+	(template-default-expansion-alist): Remove `template-wait' for
+	"WAIT" and delete the function.
+
+	* template.el: Streamline the check for secure commands and the
+	decision whether to call it interactively or non-interactively.
+	Suggested by Vincent Belaïche <vincentb1@users.sourceforge.net>.
+	(template-elisp-in-definition): Property `template-secure-command'
+	on command symbol must either be t or a function.  With return
+	value `non-interactive', the command is executed non-interactively.
+	(template-insert-time): Adapt function in `template-secure-command'.
+
+	* template.el: Improve header updating.
+	(template-header-regexp-alist): Require the hyphens after the
+	to-be-updated file name to be surrounded by spaces.
+	(template-update-header): Fix constructed `comment-regexp'.
+
+	* template.el: Improve code structure, docstrings and comments.
+	(template-process-definition, template-cons-process-definition):
+	Make the former call the latter, not the other way round.
+
+2023-11-23  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.el: Make automatic template insertion into new files
+	work again when upgrading to Emacs-29 or newer.
+	From Kai Tetzlaff <kate21@users.sourceforge.net>
+	(template-initialize-do): Don't use the long obsolete `-hooks'
+	suffix for abnormal hooks like `find-file-not-found-functions'.
+	(template-new-file): Bind `find-file-not-found-functions'.
+	(require): Use cl-lib, declare functions and variables.
+	(template-comment-separator-regexp)
+	(template-new-file-expansions, template-translate-read): Use ugly
+	`cl-' prefix for `decf' and `list*'.
+	(template-unique-file): Use `nth' instead of `third', `fourth' and
+	`fifth'.
+
+2015-06-08  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template 3.3c, internal.
+
+2015-06-05  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.el: Expansions now work with the right major mode.
+	Suggested by David Wallin <david.wallin@ul.ie>.
+	(template-new-file): Run `normal-mode' at the beginning, do not
+	disable auto-mode and local variables when finding new file.
+	Slightly change the order of other expansion steps, too.
+	(template-new-file-expansions): Update header here.
+	(template-new-file-messages): Do not set modification status here.
+
+	* template.el: Consistently bind variables defined in the
+	definition section.  For customizing the expansion behavior on a
+	per-template basis, e.g. for files where "(>>>KEY<<<)" is not ideal.
+	Suggested by Vincent Belaïche <vincentb1@users.sourceforge.net>.
+	(template-new-file): Save old value and local-variable / unbound
+	status and restore it after the expansion.
+	(template-new-file-expansions): Do not set variables here.
+	(template-process-definition): Allow list to contain old value.
+	(template-process-cons-definition): Delay formatting.
+	(template-display-messages): Eval format symbol.
+	(template-new-file-expansions, template-new-file-messages):
+	Specify message format and intro value here.
+
+	* template.el: Introduce a better way to define commands and
+	sexprs to be executed before and after the expansions, see
+	docstring of `template-definition-start' for details.
+	Suggested by Vincent Belaïche <vincentb1@users.sourceforge.net>.
+	(template-process-cons-definition): allow :before and :after
+	instead of "KEY" in command/sexprs definitions.
+	(template-process-definition): Slightly reorder functions.
+	(template-new-file): Simplify parameters.
+	(template-not-found-function, template-expand-template): Adopt.
+
+	* template: New predefined expansion form WAIT.
+	(template-default-expansion-alist) Add it.
+	(template-wait): New function waiting for user input.
+
+2015-03-23  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template 3.3b.
+
+2015-03-16  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.texi: A first round of manual changes.
+	(Overview): Add a paragraph about the nature of	the manual.
+	(Related): Delete section as I do not intend to update it.
+	(Installation): Changed according to installation changes.
+
+2015-03-09  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.el: Improve installation, via customization.  See the
+	initial comment section.
+	Suggested by Peter S Galbraith <psg@debian.org>.
+	(template-use-package): Make it a proper customization option.
+	(template-initialize-and-set): New function as custom :set for
+	`template-use-package'.
+	(template-initialize-menus): New function.
+	(template-initialize-do) Renamed from `template-initialize'.
+	(template-initialize): Compatibility function which sets
+	`template-use-package'
+	(template-not-found-function): Check `template-use-package'.
+	(template-update-buffer): Check `template-use-package' when not used
+	interactively.
+	(template): Move `provide' from beginning to end of file.
+
+2015-02-20  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template 3.3a.
+
+	* template.texi: Improve navigation in Info buffer.  Add some
+	@subsection, @subsubsection, change some levels.  Update @node.
+
+	* template.el: The first round of suggested changes...
+	(template-find-template): In Emacs, make sure that coding system
+	of the template is used for the new file.  Thanks to Vincent
+	Belaïche <vincentb1@users.sourceforge.net>.
+
+2009-09-24  Vincent Belaïche <vincentb1@users.sourceforge.net>
+
+	* template.texi: template has an info file, currently for 3.1c.
+
+2015-02-17  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template 3.3.
+
+	* template.el: Minor changes.
+	(template-default-directories): In Emacs, add the subdirectory
+	called "templates/", relatively to directory of template.elc.
+	(template-default-expansion-alist): New expansion form "PACKAGE"
+	for the directory path between the template and the new file.
+	(template-template): New internal variable.
+	(template-insert-package): New function.
+
+2012-03-13  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template 3.2b, internal.
+
+	* template.el: Better code structure.  Suggested by Vincent
+	Belaïche <vincentb1@users.sourceforge.net>.
+	(template-pre-command-list, template-post-command-list)
+	(template-local-variable-list): New internal variables.
+	(template-new-file-0): Delete function.
+	(template-new-file-init, template-new-file-definitions)
+	(template-new-file-expansions, template-new-file-messages):
+	(template-process-cons-definition, template-process-definition):
+	New functions replacing `template-new-file-0'.
+	(template-new-file): Use them.
+	(template-translate-read): New function.
+	(template-translate-definition): Use it.
+
+	* template.el: Minor code cleanup.
+	(template-insert-separator): Expect `comment-end' as string, not
+	as complete syntax specification.
+	(template-single-comment, template-block-comment): Change
+	accordingly.
+
+2009-05-06  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template 3.2a, internal.
+
+	* template.el Bug fix: avoid infloop when using M-x
+	template-new-file in Emacs.  Thanks to Prakhar Goel
+	<newt0311@gmail.com>.
+	(template-unique-file): Would always inspect same subdirs.
+
+	* template.el: Fix docstrings, run M-x checkdoc on file.
+	(template-update-buffer-alist): Fix docstring.
+	(template-register-regexp): More detailed docstring.
+	(template-insert-separator): Fix docstring.
+	(template-expand-template-interactive): Add docstring.
+	(template-display-messages): Add docstring.
+	(template-insert-time): Fix docstring.
+
+2008-10-23  Vincent Belaïche <vincentb1@users.sourceforge.net>
+
+	* template.el: Adopt to changes for template creation in 2.3d.
+	(template-definition-start): Is a string - update docstring.
+	(template-new-file-0): Regexp quote accordingly.
+	(template-define-start): Regexp quote accordingly.
+
+	* template.el: Code beautification, add comments.
+	(template-new-file): Use `when'.
+	(template-new-file-0): Use `unless', `dolist', no misuse of var
+	reuse, use better var names.
+	(template-elisp-in-definition): Use `unless'.
+	(template-unique-file): Replace obsolete `string-to-int'.
+	(template-filename-number): Ditto.
+
+2004-03-26  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template 3.2.  Internal.
+
+2004-03-22  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.el: Make template work with package ido.el.
+	Reported by Yu Li <liyu2000@hotmail.com>.
+	(template-file-select-commands): Add `ido-exit-minibuffer'.
+	From Thomas Moschny <moschny@ipd.uni-karlsruhe.de>.
+
+2003-11-28  Christoph Wedler  <wedler@users.sourceforge.net>
+
+	* template.el: Provide possibility to ask user in definition order
+	for input before expansions take place, not just on demand.
+	Suggested by Bruce D'Arcus <bdarcus@fastmail.fm>.
+	(template-translate-definition): Check more arguments.
+	(template-read-from-minibuffer): New function.
+	(template-read): Use it.
+	(template-new-file-0): Call `template-read-from-minibuffer' before
+	expansions, for `template-read' with policy `immediately'.
+	(template-define-prompt): Ask for query policy.
+
 2003-08-21  Christoph Wedler  <wedler@users.sourceforge.net>
 
 	* template.el 3.1c.
@@ -99,7 +328,7 @@
 2002-03-01  Christoph Wedler  <wedler@users.sourceforge.net>
 
 	* template 3.1 is released.
-	
+
 	* template.el (template): Moved to SourceForge.net.
 
 2002-02-23  Christoph Wedler  <wedler@fmi.uni-passau.de>
@@ -121,7 +350,7 @@
 	(template-insert-time): New option argument DEFAULT.
 	(template-default-expansion-alist): New expansion (>>>TIME<<<).
 	Use `template-insert-time' for all date/time expansions.
-	
+
 	* template.el: XEmacs can now read template files with register
 	definitions using numbers, not characters.  Only define functions
 	starting with `template-'.  Only require cl for compilation.
@@ -215,7 +444,7 @@
 	(template-find-template): Prevent infloop in XEmacs.  Don't use t
 	as 4th arg of `insert-file-contents' if the narrowed part is
 	empty.
-	
+
 	* template.el: Miscellaneous improvements.
 	(template-new-file-0): With (>>>MARK<<<), push -not set- mark.
 	Reported by Stephan Helma <s.p.helma@gmx.net>.
